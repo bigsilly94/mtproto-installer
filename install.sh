@@ -5,6 +5,7 @@ REPO_RAW="${REPO_RAW:-https://raw.githubusercontent.com/itcaat/mtproto-installer
 INSTALL_DIR="${INSTALL_DIR:-$(pwd)/mtproxy-data}"
 FAKE_DOMAIN="${FAKE_DOMAIN:-1c.ru}"
 TELEMT_INTERNAL_PORT="${TELEMT_INTERNAL_PORT:-1234}"
+LISTEN_PORT="${LISTEN_PORT:-443}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -39,6 +40,70 @@ check_docker() {
 	fi
 }
 
+is_port_in_use() {
+	local port="$1"
+	if command -v ss &>/dev/null; then
+		ss -tuln 2>/dev/null | grep -qE "[.:]${port}[[:space:]]"
+		return $?
+	fi
+	if command -v nc &>/dev/null; then
+		nc -z 127.0.0.1 "$port" 2>/dev/null
+		return $?
+	fi
+	return 1
+}
+
+prompt_port() {
+	local suggested=443
+	if is_port_in_use 443; then
+		warn "Порт 443 занят."
+		suggested=1443
+		while true; do
+			if [[ -t 0 ]]; then
+				echo -n "Введите порт [${suggested}]: "
+				read -r input
+				[[ -z "$input" ]] && input=$suggested
+			else
+				LISTEN_PORT=$suggested
+				return
+			fi
+			if [[ "$input" =~ ^[0-9]+$ ]] && (( input >= 1 && input <= 65535 )); then
+				if is_port_in_use "$input"; then
+					warn "Порт ${input} тоже занят, выберите другой."
+				else
+					LISTEN_PORT=$input
+					return
+				fi
+			else
+				warn "Введите число от 1 до 65535."
+			fi
+		done
+	else
+		if [[ -t 0 ]]; then
+			echo -n "Порт для прокси [443]: "
+			read -r input
+			[[ -n "$input" ]] && input="$input" || input=443
+			while true; do
+				if [[ "$input" =~ ^[0-9]+$ ]] && (( input >= 1 && input <= 65535 )); then
+					if is_port_in_use "$input"; then
+						warn "Порт ${input} занят, выберите другой."
+						echo -n "Введите порт: "
+						read -r input
+					else
+						LISTEN_PORT=$input
+						return
+					fi
+				else
+					warn "Введите число от 1 до 65535."
+					echo -n "Введите порт [443]: "
+					read -r input
+					[[ -z "$input" ]] && input=443
+				fi
+			done
+		fi
+	fi
+}
+
 prompt_fake_domain() {
 	if [[ -n "${FAKE_DOMAIN_FROM_ENV}" ]]; then
 		FAKE_DOMAIN="${FAKE_DOMAIN_FROM_ENV}"
@@ -60,6 +125,7 @@ download_and_configure() {
 	mkdir -p "${INSTALL_DIR}/traefik/dynamic" "${INSTALL_DIR}/traefik/static"
 
 	fetch "${REPO_RAW}/docker-compose.yml" "${INSTALL_DIR}/docker-compose.yml"
+	sed "s/443:443/${LISTEN_PORT}:443/" "${INSTALL_DIR}/docker-compose.yml" > "${INSTALL_DIR}/docker-compose.yml.tmp" && mv "${INSTALL_DIR}/docker-compose.yml.tmp" "${INSTALL_DIR}/docker-compose.yml"
 	fetch "${REPO_RAW}/traefik/dynamic/tcp.yml" "${INSTALL_DIR}/traefik/dynamic/tcp.yml"
 	fetch "${REPO_RAW}/telemt.toml.example" "${INSTALL_DIR}/telemt.toml.example"
 
@@ -104,7 +170,7 @@ print_link() {
 	fi
 
 	SERVER_IP=$(curl -s --connect-timeout 3 ifconfig.me 2>/dev/null || echo "YOUR_SERVER_IP")
-	LINK="tg://proxy?server=${SERVER_IP}&port=443&secret=${LONG_SECRET}"
+	LINK="tg://proxy?server=${SERVER_IP}&port=${LISTEN_PORT}&secret=${LONG_SECRET}"
 	echo ""
 	echo -e "${GREEN}--- Ссылка для Telegram ---${NC}"
 	echo "${LINK}"
@@ -118,6 +184,7 @@ print_link() {
 main() {
 	[[ "${INSTALL_DIR}" != /* ]] && INSTALL_DIR="$(pwd)/${INSTALL_DIR}"
 	check_docker
+	prompt_port
 	prompt_fake_domain
 	download_and_configure
 	run_compose

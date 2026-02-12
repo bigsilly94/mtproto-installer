@@ -68,6 +68,36 @@ curl -sSL https://raw.githubusercontent.com/itcaat/mtproto-installer/main/instal
 
 - **`Error while peeking client hello bytes error=EOF`** в логах Traefik — обычно это проверки доступности (health check) или сканеры: кто-то открывает TCP на 443 и закрывает соединение до TLS. На работу прокси не влияет, можно игнорировать.
 
+## Удаление
+
+**Скриптом** (из каталога с репозиторием или скачав скрипт):
+
+```bash
+curl -sSL https://raw.githubusercontent.com/itcaat/mtproto-installer/main/uninstall.sh | bash
+```
+
+Каталог по умолчанию — `./mtproxy-data`. Другой каталог или без подтверждения: `./uninstall.sh -y /path/to/mtproxy-data`.
+
+**Пошагово без скрипта:**
+
+1. Перейти в каталог установки:
+   ```bash
+   cd /path/to/mtproxy-data   # например ~/mtproxy-data или /opt/mtproxy
+   ```
+
+2. Остановить и удалить контейнеры:
+   ```bash
+   docker compose down
+   ```
+
+3. Удалить каталог со всеми данными (конфиги, секрет):
+   ```bash
+   cd ..
+   rm -rf /path/to/mtproxy-data
+   ```
+
+После этого прокси и ссылка на него перестанут работать; образы Docker останутся в системе (`docker images`). При необходимости их можно удалить: `docker rmi traefik:v3.2 whn0thacked/telemt-docker:latest`.
+
 ## Полезные команды
 
 - Логи: `docker compose logs -f`

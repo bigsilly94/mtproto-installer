@@ -24,19 +24,46 @@ fetch() {
 	fi
 }
 
+rerun_cmd() {
+	if [[ "$0" == *bash* ]] || [[ "$0" == -* ]]; then
+		echo "curl -sSL https://raw.githubusercontent.com/itcaat/mtproto-installer/main/install.sh | bash"
+	else
+		local dir
+		dir="$(cd "$(dirname "$0")" && pwd)"
+		echo "bash ${dir}/$(basename "$0")"
+	fi
+}
+
 check_docker() {
 	if command -v docker &>/dev/null; then
 		if docker info &>/dev/null 2>&1; then
 			info "Docker доступен."
 			return 0
 		fi
-		warn "Docker установлен, но текущий пользователь не в группе docker. Запустите: sudo usermod -aG docker \$USER && newgrp docker"
-		err "Или запустите этот скрипт с sudo."
+		echo ""
+		warn "Docker установлен, но текущий пользователь не в группе docker."
+		echo ""
+		echo "Выполните команду (добавление в группу и применение):"
+		echo -e "  ${GREEN}sudo usermod -aG docker \$USER && newgrp docker${NC}"
+		echo ""
+		echo "Затем запустите этот скрипт снова:"
+		echo -e "  ${GREEN}$(rerun_cmd)${NC}"
+		echo ""
+		exit 1
 	fi
 	info "Установка Docker..."
 	curl -fsSL https://get.docker.com | sh
 	if ! docker info &>/dev/null 2>&1; then
-		err "После установки Docker выполните: sudo usermod -aG docker \$USER && newgrp docker (или перелогиньтесь), затем снова запустите скрипт."
+		echo ""
+		warn "Docker установлен. Нужно добавить пользователя в группу docker."
+		echo ""
+		echo "Выполните команду:"
+		echo -e "  ${GREEN}sudo usermod -aG docker \$USER && newgrp docker${NC}"
+		echo ""
+		echo "Затем запустите этот скрипт снова:"
+		echo -e "  ${GREEN}$(rerun_cmd)${NC}"
+		echo ""
+		exit 1
 	fi
 }
 
@@ -172,13 +199,18 @@ print_link() {
 	SERVER_IP=$(curl -s --connect-timeout 3 ifconfig.me 2>/dev/null || echo "YOUR_SERVER_IP")
 	LINK="tg://proxy?server=${SERVER_IP}&port=${LISTEN_PORT}&secret=${LONG_SECRET}"
 	echo ""
-	echo -e "${GREEN}--- Ссылка для Telegram ---${NC}"
-	echo "${LINK}"
+	echo -e "${GREEN}╔══════════════════════════════════════════════════════════╗${NC}"
+	echo -e "${GREEN}║  Ссылка для Telegram (Fake TLS)                         ║${NC}"
+	echo -e "${GREEN}╚══════════════════════════════════════════════════════════╝${NC}"
 	echo ""
-	echo "Сохраните ссылку и не публикуйте её публично."
-	echo "Данные установки: ${INSTALL_DIR}"
-	echo "Логи: cd ${INSTALL_DIR} && docker compose logs -f"
-	echo "Остановка: cd ${INSTALL_DIR} && docker compose down"
+	echo -e "  ${GREEN}${LINK}${NC}"
+	echo ""
+	echo "  Сохраните ссылку и не публикуйте её публично."
+	echo ""
+	echo "  Данные установки: ${INSTALL_DIR}"
+	echo "  Логи:            cd ${INSTALL_DIR} && docker compose logs -f"
+	echo "  Остановка:       cd ${INSTALL_DIR} && docker compose down"
+	echo ""
 }
 
 main() {

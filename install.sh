@@ -196,7 +196,18 @@ print_link() {
 		LONG_SECRET="$SECRET"
 	fi
 
-	SERVER_IP=$(curl -s --connect-timeout 3 ifconfig.me 2>/dev/null || echo "YOUR_SERVER_IP")
+	SERVER_IP=""
+	for url in https://ifconfig.me/ip https://icanhazip.com https://api.ipify.org https://checkip.amazonaws.com; do
+		raw=$(curl -s --connect-timeout 3 "$url" 2>/dev/null | tr -d '\n\r')
+		if [[ -n "$raw" ]] && [[ ! "$raw" =~ [[:space:]] ]] && [[ ! "$raw" =~ (error|timeout|upstream|reset|refused) ]] && [[ "$raw" =~ ^([0-9.]+|[0-9a-fA-F:]+)$ ]]; then
+			SERVER_IP="$raw"
+			break
+		fi
+	done
+	if [[ -z "$SERVER_IP" ]]; then
+		SERVER_IP="YOUR_SERVER_IP"
+		warn "Не удалось определить внешний IP. Подставьте IP сервера в ссылку вручную."
+	fi
 	LINK="tg://proxy?server=${SERVER_IP}&port=${LISTEN_PORT}&secret=${LONG_SECRET}"
 	echo ""
 	echo -e "${GREEN}╔══════════════════════════════════════════════════════════╗${NC}"
